@@ -11,13 +11,16 @@ from nltk.corpus import stopwords
 from bokeh.plotting import figure
 from bokeh.io import show, output_file
 
-def collect_tweets(twitter_search_term, result_type = 'popular'):
 
-    conn = sql.connect('tweets.db')
+def collect_tweets(db_file, twitter_search_term, result_type = 'popular'):
+
+    tweet_type = 'p' if result_type == 'popular' else 'm'
+
+    conn = sql.connect(db_file)
     cur = conn.cursor()
 
     cur.execute('''CREATE TABLE IF NOT EXISTS tweets
-                 (created_at text, keyword text, id integer, username text, followers integer, tweet_text text,\
+                 (created_at text, keyword text, tweet_type text, id integer, username text, followers integer, tweet_text text,\
                       processed_tweet text, sentiment real)''')
 
     auth = OAuthHandler(consumer_key, consumer_secret)
@@ -27,11 +30,16 @@ def collect_tweets(twitter_search_term, result_type = 'popular'):
     _until_7_days = datetime.today() - timedelta(days = 7)
     format_until_7_days = _until_7_days.strftime('%Y-%m-%d')
 
-    # until = format_until_7_days,\
+    cur.execute('''SELECT tweet_type FROM tweets WHERE keyword = ? group by 1''', (twitter_search_term,))
+    _existing_tweet_types = cur.fetchall()
+    _existing_tweet_types = [j for i in _existing_tweet_types for j in i]
+
+    if tweet_type in _existing_tweet_types:
+        return
+
     arr = api.search(q = twitter_search_term,\
     tweet_mode = 'extended', count = 100, lang = 'en', result_type = result_type)
 
-    #arr = Cursor(api.search, q = f"from:realDonaldTrump until: {format_until_7_days}, count = 15, lang = 'en', tweet_mode = 'extended' ")
     for single_json_tweet in range(len(arr)):
         convert_json = json.dumps(arr[single_json_tweet]._json)
         tweet = json.loads(convert_json)
@@ -43,8 +51,8 @@ def collect_tweets(twitter_search_term, result_type = 'popular'):
         tweet_id = tweet['id']
 
 
-        cur.execute('''INSERT INTO tweets(created_at, keyword, id, username, followers, tweet_text)\
-        VALUES (?, ?, ?, ?, ?, ?)''', (created_at, twitter_search_term, tweet_id, username, followers, tweet_t))
+        cur.execute('''INSERT INTO tweets(created_at, keyword, id, username, followers, tweet_text, tweet_type)\
+        VALUES (?, ?, ?, ?, ?, ?, ?)''', (created_at, twitter_search_term, tweet_id, username, followers, tweet_t, tweet_type,))
         conn.commit()
 
     cur.execute('SELECT min(id) from tweets WHERE keyword = ?', (twitter_search_term,))
@@ -66,15 +74,15 @@ def collect_tweets(twitter_search_term, result_type = 'popular'):
             tweet_id = tweet['id']
 
 
-            cur.execute('''INSERT INTO tweets(created_at, keyword, id, username, followers, tweet_text)\
-            VALUES (?, ?, ?, ?, ?, ?)''', (created_at, twitter_search_term, tweet_id, username, followers, tweet_t))
+            cur.execute('''INSERT INTO tweets(created_at, keyword, id, username, followers, tweet_text, tweet_type)\
+            VALUES (?, ?, ?, ?, ?, ?, ?)''', (created_at, twitter_search_term, tweet_id, username, followers, tweet_t, tweet_type,))
             conn.commit()
 
         cur.execute('SELECT min(id) from tweets WHERE keyword = ?', (twitter_search_term,))
         new_min_id = min_id
         min_id = cur.fetchall()[0][0]
 
-def data_cleaning(sql_db_file):
+def data_cleaning(sql_db_file, search_term):
 
     conn = sql.connect(sql_db_file)
     cur = conn.cursor()
@@ -95,7 +103,7 @@ def data_cleaning(sql_db_file):
             word_tokenized_tweet_text = [i for i in word_tokenized_tweet_text if i.isalpha()]
 
             for word in word_tokenized_tweet_text:
-                if word not in stopWords and word not in ['https', 'http']:
+                if word not in stopWords and word not in ['https', 'http', 'rt']:
                     temp_set_word_to_db.append(word)
 
 
@@ -105,7 +113,7 @@ def data_cleaning(sql_db_file):
         cur.execute('''UPDATE tweets SET processed_tweet = ? WHERE _rowid_ = ? ;''', (_temp_string_word_to_db, tweet_row[0]))
         conn.commit()
 
-def sentiment_analysis(sql_db_file):
+def sentiment_analysis(sql_db_file, search_term):
 
     conn = sql.connect(sql_db_file)
     cur = conn.cursor()
@@ -120,7 +128,7 @@ def sentiment_analysis(sql_db_file):
         cur.execute('''UPDATE tweets SET sentiment = ? WHERE _rowid_ = ?''', (ss['compound'], tweet[0]))
         conn.commit()
 
-def plotting(sql_db_file):
+def plotting(sql_db_file, search_term):
 
     conn = sql.connect(sql_db_file)
     cur = conn.cursor()
@@ -137,17 +145,19 @@ def plotting(sql_db_file):
     _dates_to_plot = [datetime.strptime(i, '%d-%b-%Y') for i, j in all_tweets]
     _sentiment_to_plot = [j for i, j in all_tweets]
 
-    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = 500, plot_height = 500, x_axis_type = 'datetime')
+    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = 800, plot_height = 500, x_axis_type = 'datetime')
     p.line(_dates_to_plot, _sentiment_to_plot, line_width = 2)
 
-    show(p)
+    return p
 
 
 if __name__ == '__main__':
 
-    search_term = input('Who would u like to search for?\n')
-    collect_tweets(search_term, result_type = 'popular')
+    db_file = 'test.db'
 
-    data_cleaning('tweets.db')
-    sentiment_analysis('tweets.db')
-    plotting('tweets.db')
+    search_term = input('Who would u like to search for?\n')
+    collect_tweets(db_file, search_term, result_type = 'mixed')
+
+    data_cleaning(db_file)
+    sentiment_analysis(db_file)
+    plotting(db_file)
