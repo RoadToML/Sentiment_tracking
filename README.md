@@ -1,10 +1,10 @@
 # Sentiment_tracking
 
-###ToDo
+### ToDo
 
-..* Add Hourly Analysis Functionality
-..* Create Flask WebApp
-..* Push to AWS
+- Add Hourly Analysis Functionality
+- Create Flask WebApp
+- Push to AWS
 
 ------------------------------------------------------------------
 
