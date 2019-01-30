@@ -128,7 +128,7 @@ def sentiment_analysis(sql_db_file, search_term):
         cur.execute('''UPDATE tweets SET sentiment = ? WHERE _rowid_ = ?''', (ss['compound'], tweet[0]))
         conn.commit()
 
-def plotting(sql_db_file, search_term):
+def plotting(sql_db_file, search_term, height, width):
 
     conn = sql.connect(sql_db_file)
     cur = conn.cursor()
@@ -145,7 +145,7 @@ def plotting(sql_db_file, search_term):
     _dates_to_plot = [datetime.strptime(i, '%d-%b-%Y') for i, j in all_tweets]
     _sentiment_to_plot = [j for i, j in all_tweets]
 
-    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = 800, plot_height = 500, x_axis_type = 'datetime')
+    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = width, plot_height = height, x_axis_type = 'datetime')
     p.line(_dates_to_plot, _sentiment_to_plot, line_width = 2)
 
     return p
