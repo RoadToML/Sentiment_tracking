@@ -10,6 +10,7 @@ from nltk import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from bokeh.plotting import figure
 from bokeh.io import show, output_file
+from bokeh.models import HoverTool
 
 
 def collect_tweets(db_file, twitter_search_term, result_type = 'popular'):
@@ -30,11 +31,15 @@ def collect_tweets(db_file, twitter_search_term, result_type = 'popular'):
     _until_7_days = datetime.today() - timedelta(days = 7)
     format_until_7_days = _until_7_days.strftime('%Y-%m-%d')
 
-    cur.execute('''SELECT tweet_type FROM tweets WHERE keyword = ? group by 1''', (twitter_search_term,))
+    cur.execute('''Select max(substr(created_at, 9, 2) || '-' || substr(created_at, 5, 3) || '-' || substr(created_at, 27, 4)) as date,\
+     tweet_type from tweets where keyword = ? group by 2''', (twitter_search_term,))
+
     _existing_tweet_types = cur.fetchall()
     _existing_tweet_types = [j for i in _existing_tweet_types for j in i]
 
-    if tweet_type in _existing_tweet_types:
+    _date_today = datetime.today().strftime('%d-%b-%Y')
+
+    if tweet_type in _existing_tweet_types and _date_today in _existing_tweet_types:
         return
 
     arr = api.search(q = twitter_search_term,\
@@ -128,7 +133,7 @@ def sentiment_analysis(sql_db_file, search_term):
         cur.execute('''UPDATE tweets SET sentiment = ? WHERE _rowid_ = ?''', (ss['compound'], tweet[0]))
         conn.commit()
 
-def plotting(sql_db_file, search_term, height, width):
+def plotting(sql_db_file, search_term):
 
     conn = sql.connect(sql_db_file)
     cur = conn.cursor()
@@ -145,8 +150,9 @@ def plotting(sql_db_file, search_term, height, width):
     _dates_to_plot = [datetime.strptime(i, '%d-%b-%Y') for i, j in all_tweets]
     _sentiment_to_plot = [j for i, j in all_tweets]
 
-    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = width, plot_height = height, x_axis_type = 'datetime')
-    p.line(_dates_to_plot, _sentiment_to_plot, line_width = 2)
+    p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = 1000, plot_height = 500, x_axis_type = 'datetime')
+    p.multi_line([_dates_to_plot], [_sentiment_to_plot], line_width = 2)
+    p.add_tools(HoverTool(tooltips=[('sentiment','@_sentiment_to_plot')]))
 
     return p
 
@@ -156,7 +162,7 @@ if __name__ == '__main__':
     db_file = 'test.db'
 
     search_term = input('Who would u like to search for?\n')
-    collect_tweets(db_file, search_term, result_type = 'mixed')
+    collect_tweets(db_file, search_term, result_type = 'popular')
 
     data_cleaning(db_file)
     sentiment_analysis(db_file)
