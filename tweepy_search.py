@@ -151,7 +151,7 @@ def plotting(sql_db_file, search_term):
     _sentiment_to_plot = [j for i, j in all_tweets]
 
     p = figure(title = f'Daily sentiment over 1 week for {search_term}', plot_width = 1000, plot_height = 500, x_axis_type = 'datetime')
-    p.multi_line([_dates_to_plot], [_sentiment_to_plot], line_width = 2)
+    p.line(_dates_to_plot, _sentiment_to_plot, line_width = 2)
     p.add_tools(HoverTool(tooltips=[('sentiment','@_sentiment_to_plot')]))
 
     return p
